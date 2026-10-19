@@ -1,0 +1,47 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "788a6e10-f61a-42f6-900e-37f8834543e0",
+  "packageName": "com.seam.teamsagent",
+  "developer": {
+    "name": "Seam",
+    "websiteUrl": "https://example.com",
+    "privacyUrl": "https://example.com/privacy",
+    "termsOfUseUrl": "https://example.com/terms"
+  },
+  "name": {
+    "short": "Team Agent",
+    "full": "Seam Team Agent Bot"
+  },
+  "description": {
+    "short": "팀 진행상황/역할/작업을 알려주는 봇",
+    "full": "팀/프로젝트 정보 조회, 진행상황 조회, 내 역할 조회, 완료된 작업 공유 기능을 제공하는 사내용 Teams 봇입니다."
+  },
+  "icons": {
+    "outline": "outline.png",
+    "color": "color.png"
+  },
+  "accentColor": "#4A6CF7",
+  "bots": [
+    {
+      "botId": "788a6e10-f61a-42f6-900e-37f8834543e0",
+      "scopes": ["personal", "team", "groupChat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": ["personal"],
+          "commands": [
+            { "title": "1", "description": "팀/프로젝트 정보" },
+            { "title": "2", "description": "진행상황 조회" },
+            { "title": "3", "description": "내 역할 조회" },
+            { "title": "4", "description": "완료된 작업 공유하기" }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": []
+}

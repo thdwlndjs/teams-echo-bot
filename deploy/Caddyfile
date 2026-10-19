@@ -1,0 +1,6 @@
+# 도메인만 실제 값으로 바꾸면 된다 (예: mybot.duckdns.org).
+# Caddy가 이 도메인 앞으로 오는 요청에 대해 Let's Encrypt 인증서를 자동으로 받고 갱신한다 —
+# 인증서 관리를 따로 안 해도 된다는 게 Caddy를 고른 이유.
+your-domain.example.com {
+	reverse_proxy localhost:3978
+}

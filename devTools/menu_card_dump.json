@@ -1,0 +1,73 @@
+{
+  "type": "AdaptiveCard",
+  "requires": {},
+  "isSortKey": false,
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "requires": {},
+      "isVisible": true,
+      "separator": false,
+      "height": "auto",
+      "spacing": "Default",
+      "isSortKey": false,
+      "text": "안녕하세요! 아래에서 골라주세요\n\n⚙️ 연결 설정을 바꾸고 싶으면 '설정'이라고 입력하세요.",
+      "wrap": true
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Execute",
+      "requires": {},
+      "title": "1️⃣ 팀/프로젝트 정보",
+      "style": "default",
+      "mode": "primary",
+      "isEnabled": true,
+      "data": {
+        "action": "menu",
+        "choice": "1"
+      },
+      "conditionallyEnabled": false
+    },
+    {
+      "type": "Action.Execute",
+      "requires": {},
+      "title": "2️⃣ 진행상황 조회",
+      "style": "default",
+      "mode": "primary",
+      "isEnabled": true,
+      "data": {
+        "action": "menu",
+        "choice": "2"
+      },
+      "conditionallyEnabled": false
+    },
+    {
+      "type": "Action.Execute",
+      "requires": {},
+      "title": "3️⃣ 내 역할 조회",
+      "style": "default",
+      "mode": "primary",
+      "isEnabled": true,
+      "data": {
+        "action": "menu",
+        "choice": "3"
+      },
+      "conditionallyEnabled": false
+    },
+    {
+      "type": "Action.Execute",
+      "requires": {},
+      "title": "4️⃣ 완료된 작업 공유하기",
+      "style": "default",
+      "mode": "primary",
+      "isEnabled": true,
+      "data": {
+        "action": "menu",
+        "choice": "4"
+      },
+      "conditionallyEnabled": false
+    }
+  ]
+}

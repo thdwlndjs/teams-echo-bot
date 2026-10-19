@@ -1,0 +1,22 @@
+[Unit]
+Description=Teams Echo Bot (FastAPI + uvicorn)
+After=network.target
+
+[Service]
+# VM에 코드를 어디에 뒀는지에 맞게 두 줄만 바꾸면 된다 (setup_vm.sh 기본값 기준).
+WorkingDirectory=/opt/echo-bot
+Environment=ENV_FILE=/opt/echo-bot/.env.production
+ExecStart=/opt/echo-bot/.venv/bin/python src/main.py
+
+Restart=always
+RestartSec=3
+# 봇이 죽었다가 계속 재시작을 반복하면(설정 오류 등) 무한 재시작으로 로그만 채우지 않도록 상한을 둔다.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# 최소 권한으로 실행 (root 아님) — setup_vm.sh가 이 사용자를 만들어둔다.
+User=echobot
+Group=echobot
+
+[Install]
+WantedBy=multi-user.target
