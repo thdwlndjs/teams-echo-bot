@@ -21,3 +21,4 @@ os.environ["WORKLOG_LOOP"] = "0"
 # 불러올 때 .env를 읽어 다시 채우므로(load_dotenv는 이미 있는 값만 덮어쓰지 않는다) 빈 값으로 넣어 둔다.
 for name in ("GROQ_API_KEY", "CEREBRAS_API_KEY"):
     os.environ[name] = ""
+os.environ["MEMBER_ONBOARDING"] = "0"  # 처음 등록(역할 고르기)은 그 흐름을 보는 테스트만 켠다

@@ -186,11 +186,11 @@ JSON 하나만 출력해: {"parts": [{"part_id": "...", "kind": "...", "confiden
 판단할 근거가 없으면 그 part_id는 빼."""
 
 
-def groq_classify_parts(page: dict) -> dict:
+def groq_classify_parts(page: dict, priority: int = llm_queue.BACKGROUND) -> dict:
     """한 페이지의 새로 생기거나 바뀐 부분만 종류를 판정한다(docs/v1.1/spec.md P1-3). LLM 키가 없으면 미룬다."""
     if not (GROQ_API_KEY or llm_ready()) or not page.get("parts"):
         return {}
-    data = _groq_json(PART_KIND_PROMPT, page)
+    data = _llm_call(PART_KIND_PROMPT, page, priority)[0]
     return data if isinstance(data, dict) else {}
 
 
@@ -218,13 +218,13 @@ title·detail은 반드시 한국어로 쓴다. quote는 반드시 text 안에 �
 JSON 하나만 출력해: {"items": [...]}. 뽑을 것이 없으면 {"items": []}."""
 
 
-def groq_extract_part(payload: dict) -> dict:
+def groq_extract_part(payload: dict, priority: int = llm_queue.BACKGROUND) -> dict:
     """회의 메모 부분 하나에서 항목을 뽑는다(docs/v1.1/spec.md P1-4). {"items", "usage", "model"}.
     LLM 키가 없으면 빈 dict(추출을 미룬다). Groq가 막히면 Cerebras로 넘기고, 모두 막히면 llm_queue.Busy.
     model에는 "공급자:모델"을 남긴다(정답지 비교 때 어느 쪽 결과인지 구분)."""
     if not (GROQ_API_KEY or llm_ready()):
         return {}
-    data, usage, label = _llm_call(PART_EXTRACT_PROMPT, payload, llm_queue.BACKGROUND)
+    data, usage, label = _llm_call(PART_EXTRACT_PROMPT, payload, priority)
     items = data.get("items") if isinstance(data, dict) else None
     return {"items": items if isinstance(items, list) else [], "usage": usage, "model": label}
 
@@ -238,8 +238,29 @@ def groq_extract(records: list[dict]) -> list[dict]:
     return items
 
 
-def groq_judge(item: dict, related: list[dict]) -> dict:
-    return _groq_json(JUDGE_PROMPT, {"item": item, "related": related})
+STAGE_PROMPT = """너는 팀 프로젝트의 진행 단계를 판정하는 분석기야. 입력: stages(단계 목록), gates(단계별로 끝났다고 볼 조건),
+items(회의록에서 사람이 확인해 반영한 항목: id, kind(decision 정한 것 | task 할 일 | open 미정 | feedback 멘토 의견 |
+insight VOC 발견 | document 팀 문서(기획서 등)의 요약과 앞부분), title, statement).
+document는 팀이 쓴 기획 문서다. "현재 상태", "후보" 같은 표현을 그대로 믿어라(후보면 아직 확정이 아니다).
+할 일:
+1. gates마다 items만 보고 조건이 충족됐는지 판정해. 충족이면 근거 항목 id를 evidence에 꼭 넣어. 근거가 없으면 met은 false다.
+   후보·아이디어를 나열한 것은 "확정"이 아니다. decision이어야 확정이다. feedback(멘토 의견)은 팀이 정한 것이 아니다.
+2. discussing: 최근 항목들이 주로 어느 단계의 내용을 다루는지 stage 하나와 근거 id. 알 수 없으면 stage null.
+3. overturned: VOC(insight)가 팀이 세운 가정을 뒤집었으면 {"assumption": 가정 한 줄, "evidence": [id]}, 아니면 null.
+JSON 하나만 출력해: {"gates": {"<gate_id>": {"met": true|false, "evidence": [id...]}}, "discussing": {"stage": "1-2"|null,
+"evidence": [id...]}, "overturned": null}. id는 items에 있는 값만 써."""
+
+
+def groq_stage_judge(payload: dict, priority: int = llm_queue.BACKGROUND) -> dict:
+    """단계·게이트 판정(대기열 순위 3, 백그라운드). LLM 키가 없으면 빈 답(판정 안 함)."""
+    if not (GROQ_API_KEY or llm_ready()):
+        return {}
+    data = _llm_call(STAGE_PROMPT, payload, priority)[0]
+    return data if isinstance(data, dict) else {}
+
+
+def groq_judge(item: dict, related: list[dict], priority: int = llm_queue.BACKGROUND) -> dict:
+    return _llm_call(JUDGE_PROMPT, {"item": item, "related": related}, priority)[0]
 
 
 def analyze_due() -> list[dict]:

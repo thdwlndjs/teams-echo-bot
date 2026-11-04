@@ -68,6 +68,27 @@ def _get_server_client() -> httpx.AsyncClient:
     return _server_client
 
 
+FILE_DOWNLOAD_INFO = "application/vnd.microsoft.teams.file.download.info"
+
+
+def _attachments(activity) -> list[dict]:
+    """메시지에 붙은 파일(회의록 올리기용). Teams 개인 채팅 파일은 content.downloadUrl(미리 인증된 주소)을 넘긴다.
+    Teams가 메시지마다 붙이는 text/html 사본은 뺀다. 내려받기는 서버가 한다."""
+    out = []
+    for item in getattr(activity, "attachments", None) or []:
+        content_type = getattr(item, "content_type", None) or ""
+        if content_type.startswith("text/html"):
+            continue
+        content = getattr(item, "content", None)
+        url = None
+        if content_type == FILE_DOWNLOAD_INFO:
+            url = content.get("downloadUrl") if isinstance(content, dict) else getattr(content, "download_url", None)
+        url = url or getattr(item, "content_url", None)
+        if url:
+            out.append({"name": getattr(item, "name", None), "content_type": content_type, "url": url})
+    return out
+
+
 def _turn_payload(ctx: ActivityContext, kind: str = "message", text: str = "", value: dict | None = None) -> dict:
     activity = ctx.activity
     team = activity.team
@@ -83,6 +104,7 @@ def _turn_payload(ctx: ActivityContext, kind: str = "message", text: str = "", v
         "conversation": {"id": conversation.id, "type": conversation.conversation_type} if conversation else None,
         "message_id": getattr(activity, "id", None),
         "sent_at": timestamp.isoformat() if hasattr(timestamp, "isoformat") else timestamp,
+        "attachments": _attachments(activity) if kind == "message" else [],
     }
 
 

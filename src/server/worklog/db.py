@@ -250,6 +250,87 @@ MIGRATIONS: list[list[str]] = [
             PRIMARY KEY (day, provider)
         )""",
     ],
+    # 7: 확인 반영(Phase 3). 문서: docs/v1.1/spec.md P1-5, P1-6, "데이터 모델".
+    [
+        # [고치기] 전후. 사람이 고친 목록이 추출 정답지다.
+        """CREATE TABLE extract_corrections (
+            id TEXT PRIMARY KEY,
+            part_id TEXT NOT NULL,
+            content_hash TEXT NOT NULL,      -- 고친 대상 추출의 md 해시
+            prompt_version TEXT NOT NULL,
+            before_json TEXT NOT NULL,
+            after_json TEXT NOT NULL,
+            actor TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )""",
+        "CREATE INDEX extract_corrections_part ON extract_corrections(part_id, created_at)",
+        # 반영된 추출의 md 해시. 확인된 회의록이 수정되면 새 추출과 비교해 바뀐 항목만 반영한다.
+        "ALTER TABLE source_parts ADD COLUMN applied_hash TEXT",
+        # 되돌린(reverted)·취소된(cancelled) 항목은 같은 제목의 새 항목을 막지 않는다.
+        "DROP INDEX work_items_live_title",
+        """CREATE UNIQUE INDEX work_items_live_title ON work_items(scope, kind, normalized_title)
+           WHERE status NOT IN ('superseded', 'reverted', 'cancelled')""",
+    ],
+    [  # 8: 사람·권한·단계·게이트 (docs/v1.1/spec.md P2, 데이터 모델)
+        """CREATE TABLE members (
+            teams_user_id TEXT PRIMARY KEY,  -- aad_object_id
+            display_name TEXT,               -- Teams 표시 이름(권한 카드에 보임)
+            role TEXT,                       -- plan | design | dev | other
+            github_login TEXT,
+            aliases_json TEXT NOT NULL DEFAULT '[]',
+            asked_json TEXT NOT NULL DEFAULT '[]',  -- 처음 등록에서 이미 물은 것(github, aliases)
+            updated_at TEXT NOT NULL
+        )""",
+        """CREATE TABLE team_members (
+            scope TEXT NOT NULL,
+            teams_user_id TEXT NOT NULL REFERENCES members(teams_user_id),
+            can_approve INTEGER NOT NULL DEFAULT 0,
+            is_admin INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (scope, teams_user_id)
+        )""",
+        """CREATE TABLE team_stages (
+            scope TEXT PRIMARY KEY,
+            stage TEXT NOT NULL,             -- '1-1' … '3-4'
+            approved_by TEXT,
+            approved_at TEXT,
+            history_json TEXT NOT NULL DEFAULT '[]',
+            assessment_json TEXT,            -- 마지막 판정(게이트별 참/거짓·근거, 논의 중 단계)
+            assessed_hash TEXT               -- 그때의 반영 항목 지문(같으면 다시 판정하지 않는다)
+        )""",
+        """CREATE TABLE stage_gates (
+            scope TEXT NOT NULL,             -- '*' = 공통 기본값
+            stage TEXT NOT NULL,
+            gate_id TEXT NOT NULL,
+            text TEXT NOT NULL,
+            state TEXT NOT NULL DEFAULT 'open',  -- open | met | later | skipped | removed
+            evidence_json TEXT,
+            edited_by TEXT,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (scope, stage, gate_id)
+        )""",
+        """CREATE TABLE prompts_asked (
+            scope TEXT NOT NULL,
+            kind TEXT NOT NULL,              -- stage_advance | gate_missing | skipped_ahead | pivot | delete_confirm | source_change
+            key TEXT NOT NULL,
+            answer TEXT,
+            answered_by TEXT,
+            asked_at TEXT NOT NULL,
+            answered_at TEXT,
+            PRIMARY KEY (scope, kind, key)
+        )""",
+        "INSERT INTO stage_gates(scope, stage, gate_id, text, state, updated_at) VALUES ('*', '1-1', 'candidates', '후보 주제가 1개 이상이고, 후보마다 해결할 문제가 있다', 'open', '2026-11-04T00:00:00+00:00')",
+        "INSERT INTO stage_gates(scope, stage, gate_id, text, state, updated_at) VALUES ('*', '1-2', 'topic_decided', '주제 확정 결정이 있다', 'open', '2026-11-04T00:00:00+00:00')",
+        "INSERT INTO stage_gates(scope, stage, gate_id, text, state, updated_at) VALUES ('*', '1-2', 'core_problem', '해결할 핵심 문제가 정해졌다', 'open', '2026-11-04T00:00:00+00:00')",
+        "INSERT INTO stage_gates(scope, stage, gate_id, text, state, updated_at) VALUES ('*', '1-3', 'assumptions', '검증할 핵심 가정이 정해졌다', 'open', '2026-11-04T00:00:00+00:00')",
+        "INSERT INTO stage_gates(scope, stage, gate_id, text, state, updated_at) VALUES ('*', '1-3', 'target_customer', '타깃 고객이 정해졌다', 'open', '2026-11-04T00:00:00+00:00')",
+        "INSERT INTO stage_gates(scope, stage, gate_id, text, state, updated_at) VALUES ('*', '2-1', 'voc_method', '검증 방법과 대상이 정해졌다', 'open', '2026-11-04T00:00:00+00:00')",
+        "INSERT INTO stage_gates(scope, stage, gate_id, text, state, updated_at) VALUES ('*', '2-2', 'voc_collected', '수집 결과가 기록됐다', 'open', '2026-11-04T00:00:00+00:00')",
+        "INSERT INTO stage_gates(scope, stage, gate_id, text, state, updated_at) VALUES ('*', '2-3', 'voc_result', '가정 검증 결과와 기능 우선순위가 정해졌다', 'open', '2026-11-04T00:00:00+00:00')",
+        "INSERT INTO stage_gates(scope, stage, gate_id, text, state, updated_at) VALUES ('*', '3-1', 'backlog', 'GitHub에 백로그 이슈가 있다', 'open', '2026-11-04T00:00:00+00:00')",
+        "INSERT INTO stage_gates(scope, stage, gate_id, text, state, updated_at) VALUES ('*', '3-2', 'architecture', '아키텍처 결정이 있다', 'open', '2026-11-04T00:00:00+00:00')",
+        "INSERT INTO stage_gates(scope, stage, gate_id, text, state, updated_at) VALUES ('*', '3-3', 'milestones', '마일스톤별 진행이 기록된다', 'open', '2026-11-04T00:00:00+00:00')",
+        "INSERT INTO stage_gates(scope, stage, gate_id, text, state, updated_at) VALUES ('*', '3-4', 'release', '릴리스 기준과 충족 여부가 기록됐다', 'open', '2026-11-04T00:00:00+00:00')",
+    ],
 ]
 SCHEMA_VERSION = len(MIGRATIONS)
 

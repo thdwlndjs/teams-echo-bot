@@ -243,21 +243,6 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(sum("처음 읽는 중" in s for s in stages), 1)
         self.assertEqual(fake.calls, [])
 
-    def test_setup_registers_notes_page_together_with_team_page(self) -> None:
-        page, notes = "a" * 32, "b" * 32
-        main.setup_sessions["u1"] = {"team_key": "team:T1", "step": 5,
-                                     "data": {"github_repo": "o/r", "github_token": "g", "notion_token": "secret_t",
-                                              "notion_page_id": page}}
-        started: list[tuple] = []
-
-        async def fake_register(team_key, roots, token):
-            started.append((team_key, roots, token))
-
-        with patch.object(main, "_notion_page_accessible", return_value=True), \
-                patch.object(main, "_register_team_map", fake_register):
-            self.post(turn(f"https://www.notion.so/notes-{notes}", "s6"))
-        self.assertEqual(started, [("team:T1", [page, notes], "secret_t")])
-
 
 class GroqBudgetTests(unittest.TestCase):
     """실측 보고의 재현: 14만 자 페이지, 413 실패가 캐시되는 문제, 1만 2천 자짜리 회의록 행."""

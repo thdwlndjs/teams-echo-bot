@@ -257,7 +257,8 @@ def find_related(c: sqlite3.Connection, scope: str, item: dict[str, Any], limit:
     key = normalize_text(item["title"])
     refs = set(item.get("issue_refs") or [])
     scored: list[tuple[float, dict[str, Any]]] = []
-    for row in c.execute("SELECT * FROM work_items WHERE scope = ? AND status NOT IN ('superseded', 'cancelled')", (scope,)):
+    for row in c.execute("SELECT * FROM work_items WHERE scope = ? AND status NOT IN ('superseded', 'cancelled', 'reverted')",
+                         (scope,)):
         candidate = _item_dict(row)
         title, statement = candidate["title"].casefold(), candidate["statement_md"].casefold()
         score = 10.0 if candidate["normalized_title"] == key else 0.0
@@ -483,7 +484,8 @@ def _write_item(c: sqlite3.Connection, item_id: str, changes: dict[str, Any], re
 
 def _create_item(c: sqlite3.Connection, scope: str, kind: str, proposal: dict[str, Any], reason: str, actor: str, ts: str) -> str:
     title = proposal["title"]
-    clash = c.execute("SELECT id FROM work_items WHERE scope = ? AND kind = ? AND normalized_title = ? AND status != 'superseded'",
+    clash = c.execute("SELECT id FROM work_items WHERE scope = ? AND kind = ? AND normalized_title = ? "
+                      "AND status NOT IN ('superseded', 'reverted', 'cancelled')",
                       (scope, kind, normalize_text(title))).fetchone()
     if clash is not None:
         raise ConflictError(f"DUPLICATE: a live {kind} with this title already exists ({clash['id']}); re-analyze to compare with it")

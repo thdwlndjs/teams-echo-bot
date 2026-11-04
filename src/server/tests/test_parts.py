@@ -222,6 +222,12 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(page["outline"][:2], ["화분 관리기", "스마트 책장"])
         self.assertGreater(page["chars"], 2000)  # 페이지 전체 길이(부분 합)
 
+    def test_part_ids_survive_a_sync_where_block_alignment_fails(self) -> None:
+        first = {p["path"]: p["id"] for p in self.collect()}
+        again = {p["path"]: p["id"] for p in self.collect(blocks=None)}  # 이번에는 블록 목록 없이(대조 실패와 같음)
+        self.assertEqual({k: v for k, v in again.items() if k in first}, {k: first[k] for k in again if k in first})
+        self.assertFalse([p for p in parts.list_parts(self.store, SCOPE, include_gone=True) if p["status"] == "gone"])
+
     def test_parts_that_disappear_are_marked_gone(self) -> None:
         self.collect()
         shorter = SAMPLE_MD.split("1. 음성 비서")[0] + "<empty-block/>\n"

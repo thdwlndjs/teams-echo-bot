@@ -23,7 +23,7 @@ import notion_map  # noqa: E402
 import worklog_bridge  # noqa: E402
 from test_notion_map import FakeClassifier, MarkdownClientView, meeting_kinds, team_workspace  # noqa: E402
 from test_parts import SAMPLE_BLOCKS, SAMPLE_MD, split_classifier  # noqa: E402
-from worklog import parts  # noqa: E402
+from worklog import apply as wapply, parts  # noqa: E402
 
 SCOPE = "team:alpha"
 V1, V2 = "test-v1", "test-v2"
@@ -334,10 +334,14 @@ class MenuTests(unittest.TestCase):
         return text, meter.counts
 
     def test_menu2_reads_stored_extracts_without_calling_groq(self) -> None:  # A6
-        parts.extract_pending(self.store, "team:T1", FakeExtractor(), worklog_bridge.EXTRACT_PROMPT_VERSION, budget_tokens=None)
+        version = worklog_bridge.EXTRACT_PROMPT_VERSION
+        parts.extract_pending(self.store, "team:T1", FakeExtractor(), version, budget_tokens=None)
+        page_id = parts.list_parts(self.store, "team:T1")[0]["page_id"]
+        wapply.request_confirm(self.store, "team:T1", page_id)
+        wapply.apply_page(self.store, "team:T1", page_id, "u1", version)
         text, counts = self.menu2()
         self.assertEqual(counts["groq_calls"], 0)
-        self.assertIn("(회의록 기준, 확인 전)", text)
+        self.assertIn("(회의록 기준)", text)
         self.assertIn("💬 멘토링 피드백", text)
         self.assertIn("흥미를 끌 주제로", text)
         self.assertIn("AI를 어디에 쓸지", text)
@@ -347,7 +351,7 @@ class MenuTests(unittest.TestCase):
     def test_menu2_shows_raw_notes_and_progress_before_extraction(self) -> None:
         text, counts = self.menu2()
         self.assertEqual(counts["groq_calls"], 0)
-        self.assertIn("회의록 정리 중", text)
+        self.assertIn("아직 확인된 회의록이 없어요", text)
         self.assertIn("건 정리 중", text)
 
     def test_menu1_lists_documents_with_their_one_line_summary(self) -> None:

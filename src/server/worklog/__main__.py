@@ -1,12 +1,10 @@
-"""변경 후보 검토 명령. server 폴더에서 실행:
+"""작업 기록 조회 명령. server 폴더에서 실행 (회의록 반영·되돌리기는 봇 4번 메뉴에서 한다):
 
-python -m worklog candidates [--scope team:<팀ID>] [--status pending|approved|rejected|recorded|all]
-python -m worklog approve <후보ID> --actor <승인자> [--note ...]
-python -m worklog reject  <후보ID> --actor <승인자> --note <사유>
 python -m worklog impact  <결정ID>
 python -m worklog trace   <Task·결정·후보 ID>
 python -m worklog map     --scope team:<팀ID> [--json]   (섹션별 역할 보기)
 python -m worklog map-set --scope team:<팀ID> "<섹션 이름>" <진행|회의|보관|제외> --actor <이름>   (역할 바꾸기)
+python -m worklog extract-eval --scope team:<팀ID> [--prompt-version ...]   (정답지와 추출 비교)
 
 저장소 위치: --store > WORKLOG_STORE > server/../worklog.sqlite3
 결과는 JSON으로 출력한다. 종료 코드: 0 성공, 2 입력 오류, 3 충돌(이미 처리됨·오래된 후보), 4 없음.
@@ -19,7 +17,9 @@ import os
 import sys
 from pathlib import Path
 
-from . import core, sections
+from contextlib import closing
+
+from . import apply, core, db, sections
 from .db import ConflictError, NotFoundError, WorklogError
 
 DEFAULT_STORE = Path(__file__).resolve().parents[2] / "worklog.sqlite3"
@@ -29,17 +29,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m worklog")
     parser.add_argument("--store", help="SQLite 저장소 경로")
     sub = parser.add_subparsers(dest="command", required=True)
-    listing = sub.add_parser("candidates", help="변경 후보와 근거 보기")
-    listing.add_argument("--scope")
-    listing.add_argument("--status", default="pending")
-    approve = sub.add_parser("approve", help="후보 하나를 반영")
-    approve.add_argument("candidate_id")
-    approve.add_argument("--actor", required=True, help="승인자 (책임자로 기록됨)")
-    approve.add_argument("--note", default="")
-    reject = sub.add_parser("reject", help="아무것도 바꾸지 않고 후보 닫기")
-    reject.add_argument("candidate_id")
-    reject.add_argument("--actor", required=True)
-    reject.add_argument("--note", required=True)
     impact = sub.add_parser("impact", help="결정이 영향을 주는 Task")
     impact.add_argument("decision_id")
     trace = sub.add_parser("trace", help="이력과 원문 근거")
@@ -52,7 +41,17 @@ def build_parser() -> argparse.ArgumentParser:
     map_set.add_argument("role", help="진행 | 회의 | 보관 | 제외 (progress|meeting|reference|ignore)")
     map_set.add_argument("--scope", required=True)
     map_set.add_argument("--actor", required=True)
+    evaluate = sub.add_parser("extract-eval", help="정답지(봇에서 고친 목록)와 지금 추출 비교")
+    evaluate.add_argument("--scope", required=True)
+    evaluate.add_argument("--prompt-version", help="비교할 추출 버전 (기본: 가장 최근에 쓴 버전)")
     return parser
+
+
+def _latest_prompt_version(store: Path) -> str | None:
+    db.initialize(store)
+    with closing(db.connect(store)) as c:
+        row = c.execute("SELECT prompt_version FROM part_extracts ORDER BY created_at DESC LIMIT 1").fetchone()
+    return row["prompt_version"] if row else None
 
 
 def _render_map(scope: str, rows: list[dict]) -> str:
@@ -69,12 +68,9 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     store = Path(args.store or os.environ.get("WORKLOG_STORE") or DEFAULT_STORE)
     try:
-        if args.command == "candidates":
-            data = core.list_candidates(store, args.scope, None if args.status == "all" else args.status)
-        elif args.command == "approve":
-            data = core.approve(store, args.candidate_id, args.actor, args.note)
-        elif args.command == "reject":
-            data = core.reject(store, args.candidate_id, args.actor, args.note)
+        if args.command == "extract-eval":
+            version = args.prompt_version or _latest_prompt_version(store)
+            data = {"prompt_version": version, **apply.extract_eval(store, args.scope, version or "")}
         elif args.command == "map":
             rows = sections.role_table(store, args.scope)
             if not args.json:

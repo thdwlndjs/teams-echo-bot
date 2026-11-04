@@ -7,6 +7,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 from contextlib import closing, redirect_stdout
 from pathlib import Path
 
@@ -341,17 +342,22 @@ class CliTests(WorklogTestCase):
         self.assertEqual(code, 0)
         return json.loads(out.getvalue())
 
-    def test_review_commands(self) -> None:
+    def test_trace_command_shows_who_applied(self) -> None:
         s = self.say("작업: CLI 확인")
         self.analyze([s], {"작업: CLI 확인": [{"kind": "task", "title": "CLI 확인", "statement": "CLI를 확인한다"}]})
-        listed = self.run_cli("candidates", "--scope", SCOPE)["candidates"]
-        self.assertEqual(len(listed), 1)
-        applied = self.run_cli("approve", listed[0]["id"], "--actor", "lead")
-        trace = self.run_cli("trace", applied["item"]["id"])
-        self.assertEqual(trace["revisions"][0]["actor"], "lead")
-        self.assertEqual(self.run_cli("candidates", "--status", "all")["candidates"][0]["status"], "approved")
-        with redirect_stdout(io.StringIO()):
-            self.assertEqual(main(["--store", str(self.store), "approve", listed[0]["id"], "--actor", "lead"]), 3)
+        cid = worklog.list_candidates(self.store, SCOPE)["candidates"][0]["id"]
+        applied = worklog.approve(self.store, cid, "lead")
+        self.assertEqual(self.run_cli("trace", applied["item"]["id"])["revisions"][0]["actor"], "lead")
+
+    def test_cli_has_no_candidate_commands(self) -> None:  # A35: 반영은 봇 4번 메뉴에서만
+        for command in ("candidates", "approve", "reject"):
+            with redirect_stdout(io.StringIO()), patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit):
+                main(["--store", str(self.store), command, "x"])
+
+
+    def test_extract_eval_command_reports_counts(self) -> None:  # A31 (명령 경로)
+        report = self.run_cli("extract-eval", "--scope", SCOPE)
+        self.assertEqual((report["parts"], report["missing_count"], report["wrong_count"]), (0, 0, 0))
 
 
 class StoreTests(unittest.TestCase):
